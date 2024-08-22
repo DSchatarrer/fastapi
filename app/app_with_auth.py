@@ -1,19 +1,26 @@
-from fastapi import FastAPI, APIRouter, Request, HTTPException, UploadFile, Depends, Body, File, status
+from fastapi import FastAPI, APIRouter, Request, HTTPException, UploadFile, Depends, Body, File
 from fastapi_socketio import SocketManager
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from uuid import UUID
 import os
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi_msal import MSALAuthorization, UserInfo, MSALClientConfig
+from fastapi_msal import MSALAuthorization, MSALClientConfig
+
 from app.config import get_settings, Settings
 
 def create_app():
-    # Configuración de MSAL
-    client_config: MSALClientConfig = MSALClientConfig()
-    client_config.client_id = "TU_CLIENT_ID"  # Reemplaza con tu client ID
-    client_config.client_credential = "TU_CLIENT_SECRET"  # Reemplaza con tu client secret
-    client_config.tenant = "TU_TENANT_ID"  # Reemplaza con tu tenant ID
+    # Configura MSAL con los detalles de tu aplicación en Azure AD
+    client_config = MSALClientConfig(
+        client_id="TU_CLIENT_ID",  # Reemplaza con tu client ID de Azure AD
+        client_credential="TU_CLIENT_SECRET",  # Reemplaza con tu client secret de Azure AD
+        tenant="TU_TENANT_ID",  # Reemplaza con tu tenant ID de Azure AD
+        path_prefix="/auth",
+        login_path="/login",
+        token_path="/token",
+        logout_path="/logout",
+        show_in_docs=True,  # Mostrar las rutas en la documentación de Swagger
+    )
 
     msal_auth = MSALAuthorization(client_config=client_config)
 
@@ -58,25 +65,17 @@ def create_app():
     # Routers
     api_router = APIRouter()
 
-    def validate_token(token: str = Depends(msal_auth.scheme)):
-        """
-        Función para validar el token JWT usando MSAL.
-        """
-        try:
-            current_user = msal_auth.verify_jwt(token)
-            return current_user
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token inválido o no autorizado",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+    # Rutas protegidas con validación de token
+    @api_router.get("/users/me")
+    async def get_user_info(current_user=Depends(msal_auth.scheme)):
+        # Aquí current_user contiene la información del usuario autenticado
+        return JSONResponse(content={"message": "Tienes acceso a datos protegidos", "user": current_user})
 
     @api_router.post("/api/send-message")
     async def api_ai(
         data: dict = Body(...),
         settings: Settings = Depends(get_settings),
-        current_user: UserInfo = Depends(validate_token)  # Token validation
+        current_user=Depends(msal_auth.scheme)  # Validación del token
     ):
         # Capturar el body y devolverlo directamente
         return JSONResponse(content=data)
@@ -85,15 +84,15 @@ def create_app():
     async def get_progress(
         sessionKey: UUID,
         settings: Settings = Depends(get_settings),
-        current_user: UserInfo = Depends(validate_token)  # Token validation
+        current_user=Depends(msal_auth.scheme)  # Validación del token
     ):
         return JSONResponse(content=progress_manager.get_state(sessionKey))
 
     @api_router.post("/api/upload-files")
     async def upload_files(
-        files: list[UploadFile] = File(...), 
+        files: list[UploadFile] = File(...),
         settings: Settings = Depends(get_settings),
-        current_user: UserInfo = Depends(validate_token)  # Token validation
+        current_user=Depends(msal_auth.scheme)  # Validación del token
     ):
         if not files:
             raise HTTPException(status_code=400, detail="No se proporcionaron archivos")
@@ -120,12 +119,14 @@ def create_app():
         if session_key:
             socket_manager.leave_room(sid, session_key)
 
+    # Incluye las rutas de autenticación proporcionadas por MSALAuthorization
+    app.include_router(msal_auth.router)
+
     # Inicializar rutas y aplicación
     app.include_router(api_router)
-    app.include_router(msal_auth.router)  # Incluye las rutas de MSAL
 
     return app
 
 app = create_app()
 
-# uvicorn app.app:app --host 0.0.0.0 --port 8000 --reload
+# uvicorn app:app --host 0.0.0.0 --port 8000 --reload
