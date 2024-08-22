@@ -1,0 +1,10 @@
+uvicorn==0.30.6
+gunicorn==23.0.0
+pydantic==2.8.2
+pydantic-settings==2.4.0
+fastapi==0.112.1
+fastapi-socketio==0.0.10
+fastapi-msal==2.1.6
+pandas==2.2.2
+openpyxl==3.1.5
+numpy==2.1.0
