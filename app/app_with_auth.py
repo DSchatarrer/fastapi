@@ -1,18 +1,22 @@
-from fastapi import FastAPI, APIRouter, Request, HTTPException, UploadFile, Depends, Body, File
+from fastapi import FastAPI, APIRouter, Request, HTTPException, UploadFile, Depends, Body, File, status
 from fastapi_socketio import SocketManager
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from uuid import UUID
-import time
 import os
-import pandas as pd
-from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi_msal import MSALAuthorization, UserInfo, MSALClientConfig
-
 from app.config import get_settings, Settings
 
 def create_app():
+    # Configuración de MSAL
+    client_config: MSALClientConfig = MSALClientConfig()
+    client_config.client_id = "TU_CLIENT_ID"  # Reemplaza con tu client ID
+    client_config.client_credential = "TU_CLIENT_SECRET"  # Reemplaza con tu client secret
+    client_config.tenant = "TU_TENANT_ID"  # Reemplaza con tu tenant ID
+
+    msal_auth = MSALAuthorization(client_config=client_config)
+
     # Configuraciones iniciales
     app = FastAPI()
     socket_manager = SocketManager(app=app)
@@ -54,19 +58,42 @@ def create_app():
     # Routers
     api_router = APIRouter()
 
+    def validate_token(token: str = Depends(msal_auth.scheme)):
+        """
+        Función para validar el token JWT usando MSAL.
+        """
+        try:
+            current_user = msal_auth.verify_jwt(token)
+            return current_user
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token inválido o no autorizado",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
     @api_router.post("/api/send-message")
-    async def api_ai(data: dict = Body(...), settings: Settings = Depends(get_settings)):
+    async def api_ai(
+        data: dict = Body(...),
+        settings: Settings = Depends(get_settings),
+        current_user: UserInfo = Depends(validate_token)  # Token validation
+    ):
         # Capturar el body y devolverlo directamente
         return JSONResponse(content=data)
 
     @api_router.get("/api/progress")
-    async def get_progress(sessionKey: UUID, settings: Settings = Depends(get_settings)):
+    async def get_progress(
+        sessionKey: UUID,
+        settings: Settings = Depends(get_settings),
+        current_user: UserInfo = Depends(validate_token)  # Token validation
+    ):
         return JSONResponse(content=progress_manager.get_state(sessionKey))
 
     @api_router.post("/api/upload-files")
     async def upload_files(
         files: list[UploadFile] = File(...), 
-        settings: Settings = Depends(get_settings)
+        settings: Settings = Depends(get_settings),
+        current_user: UserInfo = Depends(validate_token)  # Token validation
     ):
         if not files:
             raise HTTPException(status_code=400, detail="No se proporcionaron archivos")
@@ -95,6 +122,7 @@ def create_app():
 
     # Inicializar rutas y aplicación
     app.include_router(api_router)
+    app.include_router(msal_auth.router)  # Incluye las rutas de MSAL
 
     return app
 
