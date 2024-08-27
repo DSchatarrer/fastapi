@@ -1,0 +1,29 @@
+# Usar la imagen oficial de Python basada en Alpine para Python 3.11
+FROM python:3.11-alpine
+
+# Establecer variables de entorno para asegurar que Python corra sin buffer
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Instalar dependencias necesarias del sistema
+RUN apk add --no-cache gcc musl-dev linux-headers
+
+# Establecer el directorio de trabajo en el contenedor
+WORKDIR /app
+
+# Copiar el archivo requirements.txt fuera de la carpeta app
+COPY ./requirements.txt /app/requirements.txt
+
+# Instalar las dependencias especificadas en requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+# Copiar el código de la aplicación
+COPY ./app /app
+
+# Exponer el puerto en el que correrá la aplicación
+EXPOSE 8000
+
+# Comando para correr la aplicación con Gunicorn y UvicornWorker
+# CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8000"]
+

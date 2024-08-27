@@ -1,0 +1,30 @@
+version: '3.8'  # Puedes ajustar la versión según tus necesidades
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "80:80"  # Mapea el puerto 80 del host al puerto 80 del contenedor
+    networks:
+      - app-network
+    environment:
+      - VUE_APP_API_URL=http://backend:8000  # URL del backend para consumir desde Vue.js
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    ports:
+      - "8000:8000"  # Mapea el puerto 8000 del host al puerto 8000 del contenedor
+    networks:
+      - app-network
+    environment:
+      # Aquí puedes agregar variables de entorno para el backend si es necesario
+      - DATABASE_URL=postgresql://user:password@db:5432/mydatabase
+      # Otras variables de entorno para FastAPI
+
+networks:
+  app-network:
+    driver: bridge
