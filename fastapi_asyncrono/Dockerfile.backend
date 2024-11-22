@@ -1,0 +1,104 @@
+# Usar la imagen oficial de Python basada en Alpine para Python 3.10
+FROM python:3.10.14-alpine
+
+# Establece el directorio de trabajo
+WORKDIR /usr/api_py
+
+# Establecer variables de entorno para asegurar que Python corra sin buffer
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Añadir variables de entorno del proyecto
+ENV ENVIRONMENT=prod \
+    PROJECT_NAME=project \
+    PROJECT_ID=1 \
+    FASTAPI_DEBUG=0 \
+    USER_BBDD=user \
+    PWD_BBDD=user \
+    # HOST_BBDD=localhost \
+    SQL_DATABASE=server_test \
+    PORT_BBDD=5432 \
+    API_KEY_OPENAI=xxxxx \
+    API_VERSION=2024-02-01 \
+    AZURE_ENDPOINT=https://xxxxxxx-openai.openai.azure.com/ \
+    AZURE_SEARCH_ENDPOINT=https://xxxxxxx-azure-search.search.windows.net \
+    MODEL_OPENAI=gpt-4o \
+    MODEL_EMBEDDING=text-embedding-ada-002 \
+    API_TYPE=azure_ad \
+    TEMPERATURE=0 \
+    POSTGRES_URL=postgresql+asyncpg://user:iberuser@postgres:5432/dev
+
+# Instalar dependencias necesarias del sistema para Python, PostgreSQL y compilación
+RUN apk add --no-cache \
+    gcc \
+    g++ \
+    musl-dev \
+    linux-headers \
+    postgresql16-dev \
+    postgresql-libs \
+    make \
+    git \
+    python3-dev \
+    py3-virtualenv \
+    lapack-dev \
+    openblas-dev \
+    libffi-dev
+
+RUN ls /usr/lib/postgresql16/pgxs/src/makefiles/
+
+# Clone pgvector repo y compilar la extensión
+RUN cd /tmp && \
+    git clone --branch v0.7.4 https://github.com/pgvector/pgvector.git && \
+    cd pgvector && \
+    make && \
+    make install && \
+    rm -rf /tmp/pgvector
+
+# Crear entorno virtual e instalar dependencias
+RUN python3 -m venv virtualenv && \
+    /bin/sh -c "source virtualenv/bin/activate && \
+    pip install --upgrade pip && \
+    pip install -U setuptools==72.1.0 && \
+    pip install wheel"
+
+# Copiar el archivo requirements.txt fuera de la carpeta app
+COPY ./requirements.txt .
+
+# Instalar las dependencias especificadas en requirements.txt dentro del entorno virtual
+RUN /bin/sh -c "source virtualenv/bin/activate && \
+    pip install --no-cache-dir -r requirements.txt"
+
+# Copiar el código de la aplicación
+COPY ./src ./src
+
+# Exponer el puerto en el que correrá la aplicación
+EXPOSE 8000
+
+# Limpieza para reducir el tamaño de la imagen, pero mantenemos las bibliotecas esenciales
+RUN apk del --no-cache \
+    gcc \
+    g++ \
+    musl-dev \
+    linux-headers \
+    postgresql16-dev \
+    make \
+    git && \
+    rm -rf /var/cache/apk/*
+
+# Evita ejecutar el contenedor como root
+RUN addgroup -S user && adduser -S -G user user
+
+# Cambia los permisos de todos los archivos para permitir al usuario llamarlos
+RUN chmod -R 755 /usr/api_py
+
+USER user
+
+# Comando para correr la aplicación con el entorno virtual activado
+ENTRYPOINT ["/bin/sh", "-c", "source virtualenv/bin/activate && uvicorn src.runserver:app --host 0.0.0.0 --port 8000 --reload"]
+# ENTRYPOINT ["/bin/sh", "-c", "source virtualenv/bin/activate && gunicorn src.runserver:app --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000"]
+
+# docker build -f Dockerfile.backend -t name .
+
+# docker run -p 8000:8000 name
+# docker run --network=back_end_bgbs_postgres -p 8000:8000 -e HOST_BBDD=postgres name
+# docker network ls
