@@ -1,16 +1,5 @@
 # backend_async
 
-
-## Importante: sesiones vs roles
-
-La implementación original **NO tenía expiración de roles**: `Users.role` es un
-string sin campo `expires_at`. Lo que se borraba durante la autorización eran
-**sesiones expiradas** mediante `SessionManager.purge_expired_sessions()`.
-La nueva implementación deniega una sesión expirada inmediatamente (401), incluso
-si el registro no se ha limpiado todavía. Los roles existentes siguen comprobándose.
-Si se requieren roles con caducidad, hace falta decidir un modelo nuevo y migrarlo;
-este paquete no inventa columnas ni tablas.
-
 ## Arranque
 
 Instalar `pip install -r requirements.txt`, crear `.env` a partir de `.env.example`
