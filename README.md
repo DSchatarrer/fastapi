@@ -1,4 +1,4 @@
-# Actualización de backend_async (basada en el ZIP proporcionado)
+# backend_async
 
 Esta carpeta procede del código compartido por el usuario. Conserva los nombres de tablas
 `usuarios`, `sesiones`, `n_pacientes` y `errores_logs`, los nombres de columnas y las rutas
