@@ -1,1 +1,0 @@
-# src\applications\__init__.py
