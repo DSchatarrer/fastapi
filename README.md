@@ -1,22 +1,5 @@
 # backend_async
 
-Esta carpeta procede del código compartido por el usuario. Conserva los nombres de tablas
-`usuarios`, `sesiones`, `n_pacientes` y `errores_logs`, los nombres de columnas y las rutas
-`/login`, `/login/alta-usuario`, `/pacientes/*`, además de la cookie `X-Sync.Ref`.
-
-## Qué se cambió
-
-- `security.py`: autenticación y autorización mediante SELECT, sin borrar sesiones.
-- `session_cleanup.py` + `scripts/cleanup_expired_sessions.py`: limpieza aislada,
-  con sesión y transacción propias, invocable con cron / Task Scheduler.
-- `manager_db_async.py`: motor + `SessionLocal` creados una sola vez; dependencia
-  abre/cierra una sesión distinta por petición.
-- Modelos migrados a SQLAlchemy 2.x (`DeclarativeBase`, `Mapped`, `mapped_column`),
-  usando tipos genéricos; no hay importaciones de SQLModel ni de dialectos PostgreSQL.
-- Controllers + routers trabajan con `AsyncSession` y `await`, sin bloquear el
-  event loop con SQLAlchemy síncrono. Se suprime `manager_db_sync.py`.
-- La inserción/actualización de errores funciona sin `postgresql.insert`.
-- `.env.example` contiene configuraciones ilustrativas, no secretos reales.
 
 ## Importante: sesiones vs roles
 
